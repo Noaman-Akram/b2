@@ -45,3 +45,32 @@ export const ENGINEERS = [
   { value: 'باسم الشحات', label: 'Eng. باسم الشحات (بصمة)' },
   { value: 'إسلام فؤاد', label: 'Eng. إسلام فؤاد' }
 ] as const;
+
+export const WORK_ORDER_STAGES = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'cutting', label: 'Cutting' },
+  { value: 'finishing', label: 'Finishing' },
+  { value: 'delivery', label: 'Delivery' },
+  { value: 'installing', label: 'Installing' },
+  { value: 'completed', label: 'Completed' }
+] as const;
+
+export const EMPLOYEE_RATES = [
+  { value: 0.5, label: 'Half (0.5x)', numericValue: 0.5 },
+  { value: 1, label: 'Normal (1x)', numericValue: 1 },
+  { value: 1.5, label: 'One and Half (1.5x)', numericValue: 1.5 },
+  { value: 2, label: 'Double (2x)', numericValue: 2 }
+] as const;
+
+export const STAGE_STATUSES = [
+  { value: 'not_started', label: 'Not Started', color: 'gray' },
+  { value: 'in_progress', label: 'In Progress', color: 'blue' },
+  { value: 'completed', label: 'Completed', color: 'green' },
+  { value: 'delayed', label: 'Delayed', color: 'red' },
+  { value: 'on_hold', label: 'On Hold', color: 'yellow' }
+] as const;
+
+export const ORDER_TYPES = {
+  SALE: 'sale',
+  WORK: 'work'
+} as const;

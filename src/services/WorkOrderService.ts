@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { WorkOrderDetail, WorkOrderStage, CreateWorkOrderDTO } from '../types/order';
+import { WORK_ORDER_STAGES, STAGE_STATUSES } from '../lib/constants';
 
 export class WorkOrderService {
   // Fetch all work orders
@@ -20,7 +21,7 @@ export class WorkOrderService {
       .from('order_details')
       .insert({
         ...dto,
-        process_stage: 'pending',
+        process_stage: STAGE_STATUSES[0].value, // Set initial status to 'not_started'
       })
       .select()
       .single();
@@ -28,11 +29,10 @@ export class WorkOrderService {
     if (error) throw error;
 
     // 2. Create default stages
-    const defaultStages = ['cutting', 'finishing', 'delivery', 'installing'];
-    const stages = defaultStages.map((stage) => ({
+    const stages = WORK_ORDER_STAGES.map(stage => ({
       order_detail_id: detail.detail_id,
-      stage_name: stage,
-      status: 'not_started',
+      stage_name: stage.value,
+      status: STAGE_STATUSES[0].value, // Set initial status to 'not_started'
       created_at: new Date().toISOString(),
     }));
     await supabase.from('order_stages').insert(stages);
@@ -72,11 +72,12 @@ export class WorkOrderService {
 
   async createStages(orderId: number) {
     console.log('[WorkOrderService] Creating stages for work order:', orderId);
-    const stages = [
-      { order_id: orderId, stage: 'pending', status: 'active' },
-      { order_id: orderId, stage: 'in_progress', status: 'pending' },
-      { order_id: orderId, stage: 'completed', status: 'pending' }
-    ];
+    const stages = WORK_ORDER_STAGES.map(stage => ({
+      order_id: orderId,
+      stage_name: stage.value,
+      status: STAGE_STATUSES[0].value, // Set initial status to 'not_started'
+      created_at: new Date().toISOString(),
+    }));
     const { data, error } = await supabase.from('order_stages').insert(stages);
     console.log('[WorkOrderService] Stages creation result:', { data, error });
     if (error) throw error;

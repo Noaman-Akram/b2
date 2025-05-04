@@ -25,7 +25,17 @@ import RadioGroup from '../../components/ui/RadioGroup';
 import { supabase } from '../../lib/supabase';
 import { WorkOrderService } from '../../services/WorkOrderService';
 import Toast from '../../components/ui/Toast';
-import { EGYPTIAN_CITIES, WORK_TYPES, MATERIAL_TYPES, UNITS, ENGINEERS } from '../../lib/constants';
+import { 
+  EGYPTIAN_CITIES, 
+  WORK_TYPES, 
+  MATERIAL_TYPES, 
+  UNITS, 
+  ENGINEERS, 
+  WORK_ORDER_STAGES,
+  EMPLOYEE_RATES,
+  STAGE_STATUSES,
+  ORDER_TYPES 
+} from '../../lib/constants';
 import SaleOrderSelector from '../../components/orders/SaleOrderSelector';
 
 const NewWorkOrder = () => {
@@ -38,9 +48,10 @@ const NewWorkOrder = () => {
     name: '',
     company: '',
     phone_number: '',
-    address: ''
+    address: '',
+    city: ''
   });
-  const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [isNewCustomer, setIsNewCustomer] = useState(true);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [realCustomers, setRealCustomers] = useState<any[]>([]);
   const [customersLoading, setCustomersLoading] = useState(false);
@@ -157,7 +168,8 @@ const NewWorkOrder = () => {
         name: orderData.customer_name,
         company: orderData.company,
         phone_number: customerData.phone_number || '',
-        address: orderData.address || ''
+        address: orderData.address || '',
+        city: orderData.city || ''
       });
       setWorkOrderData(prev => ({
         ...prev,
@@ -178,7 +190,8 @@ const NewWorkOrder = () => {
         name: selected.name,
         company: selected.company || '',
         phone_number: selected.phone_number || '',
-        address: selected.address || ''
+        address: selected.address || '',
+        city: selected.city || ''
       });
     }
   };
@@ -199,7 +212,8 @@ const NewWorkOrder = () => {
         name: selectedOrder.customer_name,
         company: selectedOrder.company || '',
         phone_number: customerData.phone_number || '',
-        address: selectedOrder.address || ''
+        address: selectedOrder.address || '',
+        city: selectedOrder.city || ''
       });
 
       populateFormWithOrder(selectedOrder);
@@ -273,6 +287,7 @@ const NewWorkOrder = () => {
     setSubmitting(true);
     let createdCustomerId: number | null = null;
     let createdOrderId: number | null = null;
+    let createdWorkOrderId: number | null = null;
 
     try {
       // 1. Validate required fields
@@ -286,6 +301,16 @@ const NewWorkOrder = () => {
 
       if (measurements.length === 0) {
         throw new Error('At least one measurement is required');
+      }
+
+      // Validate measurements
+      for (const m of measurements) {
+        if (m.quantity <= 0) {
+          throw new Error('Quantity must be greater than 0');
+        }
+        if (m.cost < 0) {
+          throw new Error('Cost cannot be negative');
+        }
       }
 
       // Validate that at least one unit is selected
@@ -313,7 +338,7 @@ const NewWorkOrder = () => {
               name: customer.name,
               company: customer.company,
               phone_number: customer.phone_number,
-              address: customer.address,
+              address: `${customer.address}, ${customer.city}`,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             }])
@@ -346,7 +371,7 @@ const NewWorkOrder = () => {
             customer_id: customerId,
             customer_name: customer.name,
             company: customer.company,
-            address: customer.address,
+            address: `${customer.address}, ${customer.city}`,
             work_types: workTypes,
             order_price: workOrderData.price,
             order_cost: calculateTotals().totalCost,
@@ -361,6 +386,7 @@ const NewWorkOrder = () => {
         if (orderError) throw orderError;
         console.log('[NewWorkOrder] New order created:', newOrder);
         orderId = newOrder.id;
+        createdOrderId = newOrder.id;
       } else {
         // Update existing order
         orderId = order.id;
@@ -370,7 +396,7 @@ const NewWorkOrder = () => {
           .update({
             customer_name: customer.name,
             company: customer.company,
-            address: customer.address,
+            address: `${customer.address}, ${customer.city}`,
             work_types: workTypes,
             order_price: workOrderData.price,
             order_cost: calculateTotals().totalCost,
@@ -442,6 +468,23 @@ const NewWorkOrder = () => {
 
       if (workOrderError) throw workOrderError;
       console.log('[NewWorkOrder] Work order created:', workOrder);
+      createdWorkOrderId = workOrder.detail_id;
+
+      // 6. Create Work Order Stages
+      const stages = WORK_ORDER_STAGES.map(stage => ({
+        order_detail_id: workOrder.detail_id,
+        stage_name: stage.value,
+        status: STAGE_STATUSES[0].value, // Set initial status to 'not_started'
+        created_at: new Date().toISOString()
+      }));
+
+      console.log('[NewWorkOrder] Creating stages:', stages);
+      const { error: stagesError } = await supabase
+        .from('order_stages')
+        .insert(stages);
+
+      if (stagesError) throw stagesError;
+      console.log('[NewWorkOrder] Stages created successfully');
 
       // After successful creation, set the summary and show modal
       setLastOrderSummary({
@@ -462,12 +505,32 @@ const NewWorkOrder = () => {
         measurements: measurements,
         totalCost: calculateTotals().totalCost,
         profit: calculateTotals().profit,
-        profitMargin: calculateTotals().profitMargin
+        profitMargin: calculateTotals().profitMargin,
+        stages: stages
       });
       setShowSuccessModal(true);
 
     } catch (err) {
       console.error('[NewWorkOrder] Error:', err);
+      
+      // Cleanup any created resources in case of error
+      try {
+        if (createdWorkOrderId) {
+          console.log('[NewWorkOrder] Cleaning up work order:', createdWorkOrderId);
+          await supabase.from('order_details').delete().eq('detail_id', createdWorkOrderId);
+        }
+        if (createdOrderId) {
+          console.log('[NewWorkOrder] Cleaning up order:', createdOrderId);
+          await supabase.from('orders').delete().eq('id', createdOrderId);
+        }
+        if (createdCustomerId) {
+          console.log('[NewWorkOrder] Cleaning up customer:', createdCustomerId);
+          await supabase.from('customers').delete().eq('id', createdCustomerId);
+        }
+      } catch (cleanupError) {
+        console.error('[NewWorkOrder] Error during cleanup:', cleanupError);
+      }
+
       setToast({ 
         type: 'error', 
         message: err instanceof Error ? err.message : 'Failed to create work order'
@@ -485,7 +548,8 @@ const NewWorkOrder = () => {
         name: '',
         company: '',
         phone_number: '',
-        address: ''
+        address: '',
+        city: ''
       });
     }
   };
@@ -496,7 +560,8 @@ const NewWorkOrder = () => {
       name: '',
       company: '',
       phone_number: '',
-      address: ''
+      address: '',
+      city: ''
     });
     setWorkTypes([]);
     setMeasurements([{
@@ -519,6 +584,11 @@ const NewWorkOrder = () => {
   const renderSuccessModal = () => {
     if (!lastOrderSummary) return null;
 
+    const getStatusColor = (status: string) => {
+      const statusInfo = STAGE_STATUSES.find(s => s.value === status);
+      return statusInfo?.color || 'gray';
+    };
+
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -527,7 +597,6 @@ const NewWorkOrder = () => {
             <button
               onClick={() => {
                 setShowSuccessModal(false);
-                navigate('/orders');
               }}
               className="text-gray-500 hover:text-gray-700"
             >
@@ -555,6 +624,23 @@ const NewWorkOrder = () => {
                 <p><span className="font-medium">Name:</span> {lastOrderSummary.customer.name}</p>
                 <p><span className="font-medium">Company:</span> {lastOrderSummary.customer.company || 'N/A'}</p>
                 <p><span className="font-medium">Phone:</span> {lastOrderSummary.customer.phone}</p>
+              </div>
+            </div>
+
+            {/* Work Stages */}
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Work Stages</h3>
+              <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+                {lastOrderSummary.stages.map((stage: any, index: number) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-lg font-medium text-gray-900">{stage.stage_name}</span>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium bg-${getStatusColor(stage.status)}-100 text-${getStatusColor(stage.status)}-800`}>
+                      {STAGE_STATUSES.find(s => s.value === stage.status)?.label || 'Not Started'}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -606,7 +692,6 @@ const NewWorkOrder = () => {
             <Button
               onClick={() => {
                 setShowSuccessModal(false);
-                navigate('/orders');
               }}
               className="bg-green-600 text-white hover:bg-green-700"
             >
@@ -806,15 +891,31 @@ const NewWorkOrder = () => {
                   <label className="block text-sm font-medium text-gray-700">Address *</label>
                   <div className="mt-1 relative rounded-lg shadow-sm">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Home className="h-5 w-5 text-gray-400" />
+                      <MapPin className="h-5 w-5 text-gray-400" />
                     </div>
-                    <input
-                      type="text"
-                      value={customer.address}
-                      onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
-                      className="block w-full pl-10 pr-3 py-3 text-lg rounded-lg border-gray-300 focus:ring-green-500 focus:border-green-500"
-                      required
-                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <select
+                        value={customer.city}
+                        onChange={(e) => setCustomer({ ...customer, city: e.target.value })}
+                        className="block w-full pl-10 pr-3 py-3 text-lg rounded-lg border-gray-300 focus:ring-green-500 focus:border-green-500"
+                        required
+                      >
+                        <option value="">Select a city</option>
+                        {EGYPTIAN_CITIES.map((city) => (
+                          <option key={city} value={city}>
+                            {city}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={customer.address}
+                        onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
+                        className="block w-full pl-10 pr-3 py-3 text-lg rounded-lg border-gray-300 focus:ring-green-500 focus:border-green-500"
+                        placeholder="Street address, building number, etc."
+                        required
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

@@ -28,6 +28,11 @@ import { WorkOrderDetail } from '../../types/order';
 import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import EditWorkOrderDialog from '../../components/orders/EditWorkOrderDialog';
+import { 
+  WORK_TYPES, 
+  STAGE_STATUSES, 
+  ORDER_TYPES 
+} from '../../lib/constants';
 
 interface WorkOrder {
   detail_id: string;
@@ -281,11 +286,11 @@ const WorkOrdersList = () => {
                       </td>
                       <td className="px-4 py-4">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          order.process_stage === 'completed' ? 'bg-green-100 text-green-800' :
+                          order.process_stage === ORDER_TYPES.WORK ? 'bg-green-100 text-green-800' :
                           order.process_stage === 'in_progress' ? 'bg-blue-100 text-blue-800' :
                           'bg-yellow-100 text-yellow-800'
                         }`}>
-                          {order.process_stage}
+                          {STAGE_STATUSES.find(s => s.value === order.process_stage)?.label || order.process_stage}
                         </span>
                       </td>
                       <td className="px-4 py-4">
@@ -423,48 +428,48 @@ const WorkOrdersList = () => {
                                 <div className="space-y-4">
                                   <h4 className="text-lg font-medium text-gray-900">Work Stages</h4>
                                   <div className="space-y-4">
-                                    {order.order.stages.map((stage, index) => (
-                                      <div key={index} className="bg-white p-4 rounded-lg border border-gray-200">
-                                        <div className="flex items-center justify-between">
-                                          <h5 className="text-lg font-medium text-gray-900">{stage.stage_name}</h5>
-                                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                            stage.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                            stage.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                                            'bg-gray-100 text-gray-800'
-                                          }`}>
-                                            {stage.status.replace('_', ' ')}
-                                          </span>
-                                        </div>
-                                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                          <div>
-                                            <p className="text-sm text-gray-500">Planned Start</p>
-                                            <p className="text-gray-900">{new Date(stage.planned_start_date).toLocaleDateString()}</p>
+                                    {order.order.stages.map((stage, index) => {
+                                      const statusInfo = STAGE_STATUSES.find(s => s.value === stage.status);
+                                      const statusColor = statusInfo?.color || 'gray';
+                                      return (
+                                        <div key={index} className="bg-white p-4 rounded-lg border border-gray-200">
+                                          <div className="flex items-center justify-between">
+                                            <h5 className="text-lg font-medium text-gray-900">{stage.stage_name}</h5>
+                                            <span className={`px-3 py-1 rounded-full text-sm font-medium bg-${statusColor}-100 text-${statusColor}-800`}>
+                                              {statusInfo?.label || stage.status}
+                                            </span>
                                           </div>
-                                          <div>
-                                            <p className="text-sm text-gray-500">Planned Finish</p>
-                                            <p className="text-gray-900">{new Date(stage.planned_finish_date).toLocaleDateString()}</p>
-                                          </div>
-                                          {stage.actual_start_date && (
+                                          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
-                                              <p className="text-sm text-gray-500">Actual Start</p>
-                                              <p className="text-gray-900">{new Date(stage.actual_start_date).toLocaleDateString()}</p>
+                                              <p className="text-sm text-gray-500">Planned Start</p>
+                                              <p className="text-gray-900">{new Date(stage.planned_start_date).toLocaleDateString()}</p>
+                                            </div>
+                                            <div>
+                                              <p className="text-sm text-gray-500">Planned Finish</p>
+                                              <p className="text-gray-900">{new Date(stage.planned_finish_date).toLocaleDateString()}</p>
+                                            </div>
+                                            {stage.actual_start_date && (
+                                              <div>
+                                                <p className="text-sm text-gray-500">Actual Start</p>
+                                                <p className="text-gray-900">{new Date(stage.actual_start_date).toLocaleDateString()}</p>
+                                              </div>
+                                            )}
+                                            {stage.actual_finish_date && (
+                                              <div>
+                                                <p className="text-sm text-gray-500">Actual Finish</p>
+                                                <p className="text-gray-900">{new Date(stage.actual_finish_date).toLocaleDateString()}</p>
+                                              </div>
+                                            )}
+                                          </div>
+                                          {stage.notes && (
+                                            <div className="mt-4">
+                                              <p className="text-sm text-gray-500">Notes</p>
+                                              <p className="text-gray-900">{stage.notes}</p>
                                             </div>
                                           )}
-                                          {stage.actual_finish_date && (
-                                            <div>
-                                              <p className="text-sm text-gray-500">Actual Finish</p>
-                                              <p className="text-gray-900">{new Date(stage.actual_finish_date).toLocaleDateString()}</p>
-                                            </div>
-                                          )}
                                         </div>
-                                        {stage.notes && (
-                                          <div className="mt-4">
-                                            <p className="text-sm text-gray-500">Notes</p>
-                                            <p className="text-gray-900">{stage.notes}</p>
-                                          </div>
-                                        )}
-                                      </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               )}

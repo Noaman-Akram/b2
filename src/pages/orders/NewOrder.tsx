@@ -56,7 +56,7 @@ interface NewOrderProps {
 }
 
 const NewOrder: React.FC<NewOrderProps> = ({ onWorkTypesChange }) => {
-  const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [isNewCustomer, setIsNewCustomer] = useState(true);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [customer, setCustomer] = useState<CustomerInput>({
     name: '',
@@ -148,6 +148,18 @@ const NewOrder: React.FC<NewOrderProps> = ({ onWorkTypesChange }) => {
     if (measurements.length === 0) {
       setToast({ type: 'error', message: 'At least one measurement is required' });
       return;
+    }
+
+    // Validate measurements
+    for (const m of measurements) {
+      if (m.quantity <= 1) {
+        setToast({ type: 'error', message: 'Quantity must be greater than 1' });
+        return;
+      }
+      if (m.cost < 0) {
+        setToast({ type: 'error', message: 'Cost cannot be negative' });
+        return;
+      }
     }
 
     const hasUnitSelected = measurements.some(m => m.unit !== '');
